@@ -19,8 +19,13 @@ html
                 li.nav-item
                     a.nav-link(href='/articles/add') Add article
                 
-            
+          
     .container
+      br
+      != messages('message', locals)
+      if errors
+        each error, i in errors
+          div(class="alert alert-danger") #{error.msg}
       br
       block content
       br

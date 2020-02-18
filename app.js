@@ -3,6 +3,9 @@ const express = require('express')
 const path = require('path')
 const mongoose = require('mongoose')
 const bodyParser = require('body-parser')
+const expressValidator = require('express-validator')
+const session = require('express-session')
+const flash = require('connect-flash')
 
 mongoose.connect('mongodb://localhost/nodekb');
 let db = mongoose.connection;
@@ -38,7 +41,39 @@ app.use(bodyParser.json())
 // set static or public folder
 app.use(express.static(path.join(__dirname, 'public')));
 
+// express sessions middleware
+app.use(session({
+    secret: 'keyboard cat',
+    resave: true,
+    saveUninitialized: true,
+    // cookie: { secure: true }
+  }));
 
+// express messages middleware
+  app.use(require('connect-flash')());
+  app.use(function (req, res, next) {
+    res.locals.messages = require('express-messages')(req, res);
+    next();
+  });
+
+// express validator middleware
+app.use(expressValidator({
+    errorFormatter: function(param, msg, value) {
+      var namespace = param.split('.')
+      , root    = namespace.shift()
+      , formParam = root;
+   
+     while(namespace.length) {
+      formParam += '[' + namespace.shift() + ']';
+     }
+     return {
+      param : formParam,
+      msg   : msg,
+      value : value
+     };
+    }
+   }));
+   
 
 const port = 3000
 
@@ -91,6 +126,7 @@ app.post('/articles/edit/:id', (req, res) => {
             console.log(err);
             return;
         } else {
+            req.flash('success', 'Article updated');
             res.redirect('/');
         }
     });
@@ -105,20 +141,36 @@ app.get('/articles/add', (req, res) =>
 
 // add post submit route
 app.post('/articles/add', (req, res) => {
-    let article = new Article();
+    req.checkBody('title', 'Title is required').notEmpty();
+    req.checkBody('author', 'Author is required').notEmpty();
+    req.checkBody('body', 'Body is required').notEmpty();
 
-    article.title = req.body.title;
-    article.author = req.body.author;
-    article.body = req.body.body;
+    // Get errors
+    let errors = req.validationErrors();
 
-    article.save(err => {
-        if(err) {
-            console.log(err);
-            return;
-        } else {
-            res.redirect('/');
-        }
-    });
+    if(errors) {
+        res.render('add_article', {
+            title:'Add Article',
+            errors:errors
+        });
+    } else {
+        let article = new Article();
+    
+        article.title = req.body.title;
+        article.author = req.body.author;
+        article.body = req.body.body;
+    
+        article.save(err => {
+            if(err) {
+                console.log(err);
+                return;
+            } else {
+                req.flash('success', 'Article added');
+                res.redirect('/');
+            }
+        });
+    }
+  
 });
 
 // Delete Article
